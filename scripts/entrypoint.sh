@@ -192,7 +192,7 @@ mcp_servers:
       SUI_NETWORK: mainnet
       ALLOWED_POOLS: SUI_USDC,DEEP_USDC
       LOG_LEVEL: info
-      SUI_PRIVATE_KEY: "${SUI_PRIVATE_KEY}"
+      SUI_KEY_FILE: /data/.secrets/sui_private_key
       BALANCE_MANAGER_ADDRESS: "${BALANCE_MANAGER_ADDRESS}"
       MARGIN_MANAGER_ADDRESS: "${MARGIN_MANAGER_ADDRESS}"
     tools:
@@ -210,12 +210,15 @@ inject_margin_manager_address() {
   fi
   echo "[bootstrap] Injecting MARGIN_MANAGER_ADDRESS into MCP config"
   python3 -c "
-import re
+import re, sys
 with open('${CONFIG_FILE}', 'r') as f:
     content = f.read()
 pattern = r'(      BALANCE_MANAGER_ADDRESS: [^\n]+)'
 replacement = r'\1\n      MARGIN_MANAGER_ADDRESS: \"${MARGIN_MANAGER_ADDRESS}\"'
-content = re.sub(pattern, replacement, content)
+content, n = re.subn(pattern, replacement, content)
+if n == 0:
+    print('[bootstrap] ERROR: inject_margin_manager_address anchor line not found in config.yaml', file=sys.stderr)
+    sys.exit(1)
 with open('${CONFIG_FILE}', 'w') as f:
     f.write(content)
 "
@@ -230,12 +233,15 @@ inject_github_config() {
   fi
   echo "[bootstrap] Injecting GITHUB_REPO into MCP config"
   python3 -c "
-import re
+import re, sys
 with open('${CONFIG_FILE}', 'r') as f:
     content = f.read()
 pattern = r'(      BALANCE_MANAGER_ADDRESS: [^\n]+)'
 replacement = r'\1\n      GITHUB_REPO: \"${GITHUB_REPO}\"'
-content = re.sub(pattern, replacement, content)
+content, n = re.subn(pattern, replacement, content)
+if n == 0:
+    print('[bootstrap] ERROR: inject_github_config anchor line not found in config.yaml', file=sys.stderr)
+    sys.exit(1)
 with open('${CONFIG_FILE}', 'w') as f:
     f.write(content)
 "
@@ -250,18 +256,39 @@ inject_memwal_config() {
   fi
   echo "[bootstrap] Injecting MEMWAL config into MCP config"
   python3 << PYEOF
-import re
+import re, sys
 with open('${CONFIG_FILE}', 'r') as f:
     content = f.read()
-pattern = r'(      SUI_PRIVATE_KEY: [^\n]+)'
+pattern = r'(      SUI_KEY_FILE: [^\n]+)'
 addition = ""
 addition += "\n      MEMWAL_PRIVATE_KEY: '${MEMWAL_PRIVATE_KEY}'"
 addition += "\n      MEMWAL_ACCOUNT_ID: '${MEMWAL_ACCOUNT_ID:-}'"
 addition += "\n      MEMWAL_SERVER_URL: '${MEMWAL_SERVER_URL:-https://relayer.memory.walrus.xyz}'"
-content = re.sub(pattern, r'\1' + addition, content)
+content, n = re.subn(pattern, r'\1' + addition, content)
+if n == 0:
+    print('[bootstrap] ERROR: inject_memwal_config anchor line not found in config.yaml', file=sys.stderr)
+    sys.exit(1)
 with open('${CONFIG_FILE}', 'w') as f:
     f.write(content)
 PYEOF
+}
+
+ensure_web_config() {
+  if [[ -z "${SEARXNG_URL:-}" ]]; then
+    return 0
+  fi
+  if grep -qE '^web:' "$CONFIG_FILE" 2>/dev/null; then
+    echo "[bootstrap] web: block already present, leaving it unchanged"
+    return 0
+  fi
+
+  echo "[bootstrap] Writing web search config to ${CONFIG_FILE}"
+  {
+    printf '\nweb:\n  backend: '"''"'\n  search_backend: searxng\n'
+    if [[ -n "${FIRECRAWL_API_KEY:-}" ]]; then
+      printf '  extract_backend: firecrawl\n'
+    fi
+  } >> "$CONFIG_FILE"
 }
 
 migrate_legacy_messaging_cwd() {
@@ -292,6 +319,7 @@ ensure_mcp_config
 inject_margin_manager_address
 inject_github_config
 inject_memwal_config
+ensure_web_config
 
 echo "[bootstrap] Building MCP server..."
 cd /app/mcp-server && npm run build
