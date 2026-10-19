@@ -1,8 +1,4 @@
-# Hermes DeepBook Agent
-
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/hermes-railway-template?referralCode=uTN7AS&utm_medium=integration&utm_source=template&utm_campaign=generic)
-
-Deploy a chat-based trading agent that talks to Sui's [DeepBook V3](https://docs.sui.io/standards/deepbook) exchange over Telegram, Discord, or Slack. The container bundles two processes: the [Hermes](https://github.com/NousResearch/hermes-agent) LLM gateway (chat, memory, scheduling) and a custom **DeepBook MCP server** that gives Hermes real trading and market-data tools on Sui.
+# DeepBook MCP
 
 This README focuses on the DeepBook MCP server — the TypeScript project actually developed in this repo. For Hermes gateway configuration, see the [upstream docs](https://github.com/NousResearch/hermes-agent).
 
